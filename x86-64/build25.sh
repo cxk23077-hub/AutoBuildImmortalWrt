@@ -3,12 +3,18 @@
 # 目前支持少部分第三方软件apk 通过打开shell/apk-custom-packages.sh的注释来集成
 source shell/apk-custom-packages.sh
 
-# ============= 固定集成插件：OpenClash / Nikki / HomeProxy / PassWall / Aurora主题 + 中文 =============
+# ============= 固定集成插件：Nikki / PassWall / Aurora主题 + 中文 =============
 # 注意：这里统一使用小写 nikki，避免写成 Nikki 导致 ImageBuilder 找不到包。
-BUILTIN_PACKAGES=" luci-app-openclash  luci-app-nikki nikki luci-i18n-nikki-zh-cn  luci-app-homeproxy luci-i18n-homeproxy-zh-cn  luci-app-passwall luci-i18n-passwall-zh-cn  luci-theme-aurora luci-app-aurora-config "
+BUILTIN_PACKAGES=" luci-app-nikki nikki luci-i18n-nikki-zh-cn  luci-app-passwall luci-i18n-passwall-zh-cn  luci-theme-aurora luci-app-aurora-config "
 
 # 合并 shell/apk-custom-packages.sh 里的自定义包，并去重；同时确保触发第三方 apk 仓库同步。
-CUSTOM_PACKAGES=$(echo "$CUSTOM_PACKAGES $BUILTIN_PACKAGES" | tr '\n' ' ' | sed 's/\bNikki\b/nikki/g' | xargs -n1 | awk '!seen[$0]++' | xargs)
+CUSTOM_PACKAGES=$(echo "$CUSTOM_PACKAGES $BUILTIN_PACKAGES" \
+  | tr '\n' ' ' \
+  | sed 's/\bNikki\b/nikki/g' \
+  | xargs -n1 \
+  | grep -Ev '^(luci-app-openclash|openclash|luci-app-homeproxy|homeproxy|luci-i18n-homeproxy-zh-cn)$' \
+  | awk '!seen[$0]++' \
+  | xargs)
 
 echo "第三方apk软件包: $CUSTOM_PACKAGES"
 LOGFILE="/tmp/uci-defaults-log.txt"
@@ -87,32 +93,6 @@ if [ "$INCLUDE_DOCKER" = "yes" ]; then
     echo "Adding package: luci-i18n-dockerman-zh-cn"
 fi
 
-# 若构建openclash 则添加内核
-if echo "$PACKAGES" | grep -q "luci-app-openclash"; then
-    echo "✅ 已选择 luci-app-openclash，添加 openclash core"
-    mkdir -p files/etc/openclash/core
-    # Download clash_meta
-    META_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-amd64-v1.tar.gz"
-    wget -qO- $META_URL | tar xOvz > files/etc/openclash/core/clash_meta
-    chmod +x files/etc/openclash/core/clash_meta
-    # Download GeoIP and GeoSite
-    wget -q https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat -O files/etc/openclash/GeoIP.dat
-    wget -q https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat -O files/etc/openclash/GeoSite.dat
-    # Download latest openclash Client
-    URL=$(curl -s https://api.github.com/repos/vernesong/OpenClash/releases/latest \
-      | grep "browser_download_url.*apk" \
-      | grep -E "x86_64|amd64|all|luci-app-openclash" \
-      | head -n1 \
-      | cut -d '"' -f 4)
-    echo "OpenClash latest apk: $URL"
-    if [ -n "$URL" ]; then
-        wget "$URL" -P /home/build/immortalwrt/packages/
-    else
-        echo "⚠️ 未获取到 OpenClash apk 下载地址，继续使用仓库内已有 luci-app-openclash"
-    fi
-else
-    echo "⚪️ 未选择 luci-app-openclash"
-fi
 
 if echo "$PACKAGES" | grep -q "luci-app-ssr-plus"; then
     echo "✅ 已选择 luci-app-ssr-plus，添加 mihomo core"
